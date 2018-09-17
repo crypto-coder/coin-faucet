@@ -27,7 +27,3 @@ sudo mkdir /coinFaucet
 sudo chown $currentUser:$currentUser /coinFaucet
 chmod 777 /coinFaucet
 git clone https://github.com/BlockSpaces/coin-faucet.git /coinFaucet
-
-echo $linuxDistribution
-echo $appInstaller
-echo $currentUser

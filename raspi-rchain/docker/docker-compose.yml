@@ -1,0 +1,76 @@
+version: '2'
+
+
+networks:
+  rnode-net:
+
+
+services:
+
+  bootstrap.sandcastle.rchain.coop:
+    container_name: bootstrap.sandcastle.rchain.coop
+    image: kayvank/kayvank/rnode:latest
+    environment: 
+      - LD_LIBRARY_PATH=/usr/lib:/usr/lib64
+    ports:
+      - 40400:40400
+    volumes:
+      - /root/rchain/bootstrap:/var/lib/rnode
+      - /root/.m2:/root/.m2
+      - /usr/lib64:/usr/lib64
+    networks:
+      - rnode-net
+    command: run -s --host 172.18.0.2 --validator-private-key a765c42969486d790c6d3a5b486067b5b03eed4943dc5fe9c88b927ea60783ea
+
+
+  node0.sandcastle.rchain.coop:
+    container_name: node0.sandcastle.rchain.coop
+    image: kayvank/kayvank/rnode:latest
+    environment: 
+      - LD_LIBRARY_PATH=/usr/lib:/usr/lib64
+    ports:
+      - 40500:40400
+    volumes:
+      - /root/rchain/node0:/var/lib/rnode
+      - /root/.m2:/root/.m2
+      - /usr/lib64:/usr/lib64
+    networks:
+      - rnode-net
+    command: run --host 172.18.0.3 --validator-private-key 6807fcdcb98249bbbe98dec53b4d242a3ae38f16f53f45c2b73a695723eb8f99 --bootstrap rnode://2c208c649ee799a960c2d7688836c1d82ae17c9b@172.18.0.2:40400
+    depends_on: 
+      - bootstrap.sandcastle.rchain.coop
+
+  node1.sandcastle.rchain.coop:
+    container_name: node1.sandcastle.rchain.coop
+    image: kayvank/kayvank/rnode:latest
+    environment: 
+      - LD_LIBRARY_PATH=/usr/lib:/usr/lib64
+    ports:
+      - 40600:40400
+    volumes:
+      - /root/rchain/node1:/var/lib/rnode
+      - /root/.m2:/root/.m2
+      - /usr/lib64:/usr/lib64
+    networks:
+      - rnode-net
+    command: run --host 172.18.0.4 --validator-private-key 107f8631077bb679122facb41f13df912541e67df5b37dfc48becedc20e08ac8 --bootstrap rnode://2c208c649ee799a960c2d7688836c1d82ae17c9b@172.18.0.2:40400
+    depends_on: 
+      - bootstrap.sandcastle.rchain.coop
+
+
+  repl.sandcastle.rchain.coop:
+    container_name: repl.sandcastle.rchain.coop
+    image: kayvank/kayvank/rnode:latest
+    environment: 
+      - LD_LIBRARY_PATH=/usr/lib:/usr/lib64
+    ports:
+      - 40700:40400
+    volumes:
+      - /root/rchain/node1:/var/lib/rnode
+      - /root/.m2:/root/.m2
+      - /usr/lib64:/usr/lib64
+    networks:
+      - rnode-net
+    command: repl --host 172.18.0.5 --bootstrap rnode://2c208c649ee799a960c2d7688836c1d82ae17c9b@172.18.0.2:40400
+    depends_on: 
+      - bootstrap.sandcastle.rchain.coop
