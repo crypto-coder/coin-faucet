@@ -2,7 +2,10 @@
 echo "=============================================================="
 echo "-----====:::: Raspberry Pi + RChain setup script ::::====-----"
 echo "=============================================================="
+start=`date +%s`
 
+# Exit immediately if there is an error
+set -e
 
 # Grab the current directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -28,3 +31,23 @@ esac
 
 # Execute the requested script for the appropriate Linux distribution
 "${DIR}"/"${distFolder}"/"${THIS_SCRIPT}" "$@"
+
+
+
+
+echo "Finished '${THIS_SCRIPT}'"
+echo "Duration: $((($(date +%s)-$start)/60)) minutes"
+echo "=============================================================="
+echo "-----====:::: Raspberry Pi + RChain setup script ::::====-----"
+echo "=============================================================="
+
+
+read -n 1 -r -p "Press 1 to abort, any other key to restart:" pressedKey
+if [ "$pressedKey" = "1" ]; then
+    exit 0
+elif
+    shutdown -r now
+fi
+
+
+

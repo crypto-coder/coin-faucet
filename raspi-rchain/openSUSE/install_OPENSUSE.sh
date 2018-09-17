@@ -1,12 +1,5 @@
 #!/bin/sh
 
-# Clean out last installation attempt
-rm -rf libsodium-1.0.16
-rm libsodium-1.0.16.tar.gz
-rm libressl-2.8.0.tar.gz
-rm -rf libressl-2.8.0
-rm -rf netty-tcnative
-
 
 # Install dependencies
 zypper install -y automake cmake
@@ -70,3 +63,10 @@ export CLASSPATH=$CLASSPATH:$M2_HOME/repository/io/netty/netty-tcnative-openssl-
 export CLASSPATH="$CLASSPATH:$HOME/.local/share/java/java-cup-11b.jar"
 export CLASSPATH="$CLASSPATH:$HOME/.local/share/java/java-cup-11b-runtime.jar"
 
+
+# Clean out last installation attempt
+rm -rf libsodium-1.0.16
+rm libsodium-1.0.16.tar.gz
+rm libressl-2.8.0.tar.gz
+rm -rf libressl-2.8.0
+rm -rf netty-tcnative
