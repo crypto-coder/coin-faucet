@@ -45,7 +45,7 @@ echo "=============================================================="
 read -n 1 -r -p "Press 1 to abort, any other key to restart:" pressedKey
 if [ "$pressedKey" = "1" ]; then
     exit 0
-elif
+else
     shutdown -r now
 fi
 
