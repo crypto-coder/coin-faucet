@@ -1,5 +1,23 @@
 
 
+
+
+# Create a new swap file if we have less than 2GB allocated
+currentSWAP=$(swapon --show=SIZE --noheadings --bytes)
+
+if [ ! -f /swapfile ]; then
+	if [ "$currentSWAP" -gt "2048000000" ]; then
+		echo "SWAP is larger than 2GB. No need for additional room"
+	else
+		echo "SWAP is smaller than 2GB. Creating a new SWAP file"
+
+		sudo touch /swapfile
+		dd if=/dev/zero of=/swapfile bs=1024 count=2048000
+		mkswap /swapfile
+		swapon /swapfile
+	fi
+fi
+
 # Install dependencies
 zypper install -y automake cmake
 zypper install -y libapr1 libapr-util1 libapr-util1-devel
@@ -61,3 +79,4 @@ export CLASSPATH=$CLASSPATH:$M2_HOME/repository/io/netty/netty-tcnative-openssl-
 export CLASSPATH=$CLASSPATH:$M2_HOME/repository/io/netty/netty-tcnative-openssl-static/2.0.15.Final-SNAPSHOT/netty-tcnative-openssl-static-2.0.15.Final-SNAPSHOT.jar
 export CLASSPATH="$CLASSPATH:$HOME/.local/share/java/java-cup-11b.jar"
 export CLASSPATH="$CLASSPATH:$HOME/.local/share/java/java-cup-11b-runtime.jar"
+
