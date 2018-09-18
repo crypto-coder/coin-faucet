@@ -21,3 +21,5 @@ cp bootstrap/bonds.txt $HOME/rchain/bootstrap/genesis/bonds.txt
 cp bootstrap/rnode.toml $HOME/rchain/bootstrap/rnode.toml
 cp node0/rnode.toml $HOME/rchain/node0/rnode.toml
 
+# Re-enable the desktop
+systemctl set-default graphical.target
