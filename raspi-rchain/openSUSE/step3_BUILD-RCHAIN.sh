@@ -54,8 +54,9 @@ git pull origin raspberry-pi
 #sbt "project rspace" compile
 
 
-#sbt "project roscala" compile
-#sbt "project regex" compile
+sbt "project roscala" compile
+sbt "project regex" compile
+sbt rholang/bnfc:generate
 sbt "project node" compile
 sbt "project rholangCLI" compile
 #sbt "project rspaceBench" compile
