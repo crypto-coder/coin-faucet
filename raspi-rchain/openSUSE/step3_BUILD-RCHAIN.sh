@@ -18,12 +18,12 @@ export PATH="$PATH:$(pwd)/sbt/bin"
 #sed -i "s/{}/{ system-ghc: true }/g" ~/.stack/config.yaml
 
 # Download and install Glasgow Haskell Compiler
-#wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 50 --continue https://downloads.haskell.org/~ghc/8.4.1/ghc-8.4.1-aarch64-deb8-linux.tar.xz
-#tar xf ghc-8.4.1-aarch64-deb8-linux.tar.xz
-#cd ghc-8.4.1
-#./configure
-#make install
-#cd ..
+wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 50 --continue https://downloads.haskell.org/~ghc/8.4.1/ghc-8.4.1-aarch64-deb8-linux.tar.xz
+tar xf ghc-8.4.1-aarch64-deb8-linux.tar.xz
+cd ghc-8.4.1
+./configure
+make install
+cd ..
 
 # Download and compile BNFC
 if [ ! -d "$(pwd)/bnfc" ]; then
