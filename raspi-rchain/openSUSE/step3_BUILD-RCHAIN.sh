@@ -44,18 +44,19 @@ git checkout -b raspberry-pi
 git pull origin raspberry-pi
 
 # Build and package RNode
-#sbt "project blockStorage" compile
 #sbt "project comm" compile
+#sbt "project rholang" compile
+#sbt "project casper" compile
+#sbt "project crypto" compile
 #sbt "project shared" compile
-sbt "project rspace" compile
-sbt "project roscala" compile
 #sbt "project models" compile
+#sbt "project blockStorage" compile
+#sbt "project rspace" compile
+sbt "project roscala" compile
 sbt "project regex" compile
-sbt "project crypto" compile
-sbt "project rholang" compile
-sbt "project casper" compile
+sbt "project node" compile
 sbt "project rholangCLI" compile
-#sbt "project rspaceBench" compile
+sbt "project rspaceBench" compile
 
 # There is an issue with the different logback.xml files being configured with inconsequential differences, breaking the build.  Deduplicate them
 #cp ./node/src/main/resources/logback.xml ./rholang/src/main/resources/logback.xml
