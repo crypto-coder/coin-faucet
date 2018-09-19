@@ -1,14 +1,16 @@
 
 # Install RChain build components
 zypper install -y llvm jflex alex happy
-zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/haskell/openSUSE_Leap_42.3/devel:languages:haskell.repo
+zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/haskell/openSUSE_Leap_42.3/devel:languages:haskell.repo | echo 'a'
 zypper refresh
-zypper install cabal-install
+zypper install -y cabal-install
 
 
 # Download and install Scala Build Tools
-wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 50 --continue https://piccolo.link/sbt-1.2.1.zip
-unzip sbt-1.2.1.zip
+if [ ! -d "$(pwd)/sbt" ]; then
+    wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 50 --continue https://piccolo.link/sbt-1.2.1.zip
+    unzip sbt-1.2.1.zip
+fi
 export PATH="$PATH:$(pwd)/sbt/bin"
 
 # Download and install Haskell Tool Stack
@@ -24,31 +26,36 @@ export PATH="$PATH:$(pwd)/sbt/bin"
 #cd ..
 
 # Download and compile BNFC
-git clone https://github.com/BNFC/bnfc
-cd bnfc/source
-cabal install
-ln -s "$(pwd)/dist/build/bnfc/bnfc" /usr/local/bin/bnfc
-cd ../..
+if [ ! -d "$(pwd)/bnfc" ]; then
+    git clone https://github.com/BNFC/bnfc
+    cd bnfc/source
+    cabal install
+    ln -s "$(pwd)/dist/build/bnfc/bnfc" /usr/local/bin/bnfc
+    cd ../..
+fi
 
 # Download the RasPi branch of RChain
+if [ -d "$(pwd)/rchain" ]; then
+    rm -rf "$(pwd)/rchain"
+fi
 git clone https://github.com/BlockSpaces/rchain.git
 cd rchain
 git checkout -b raspberry-pi
 git pull origin raspberry-pi
 
 # Build and package RNode
-sbt "project blockStorage" compile
-sbt "project comm" compile
-sbt "project shared" compile
+#sbt "project blockStorage" compile
+#sbt "project comm" compile
+#sbt "project shared" compile
 sbt "project rspace" compile
 sbt "project roscala" compile
-sbt "project models" compile
+#sbt "project models" compile
 sbt "project regex" compile
 sbt "project crypto" compile
 sbt "project rholang" compile
 sbt "project casper" compile
 sbt "project rholangCLI" compile
-sbt "project rspaceBench" compile
+#sbt "project rspaceBench" compile
 
 # There is an issue with the different logback.xml files being configured with inconsequential differences, breaking the build.  Deduplicate them
 #cp ./node/src/main/resources/logback.xml ./rholang/src/main/resources/logback.xml
