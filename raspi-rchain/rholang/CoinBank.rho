@@ -1,0 +1,83 @@
+new MakeCell, stdout(`rho:io:stdout`) in {
+    // Makes a cell contract to store values
+    //
+    // -- init      -- initialization channel
+    // -- get       -- "getter" channel
+    // -- set       -- "setter" channel
+    contract MakeCell(@init, get, set) = {
+        // We use "new" to create a channel that can only be
+        // used by this MakeCell to access the value.  No one
+        // else can access this channel.  (Someone looking at
+        // the blockchain can see what's in the channel, but
+        // no one will be able to change it....)
+        new valueStore in {
+            // Store the initial value
+            valueStore!(init)
+
+            // Return the value currently stored
+            | contract get(fetchedValue) = {
+                // Read from valeStore
+                for (@value <- valueStore) {
+                    // After reading from the value store, we need to
+                    // put it....
+                    valueStore!(value)
+
+                    // and send the value back to the caller
+                    | fetchedValue!(value)
+                }
+            }
+
+            // Set the value to something new, retun an acknowledgement.
+            //
+            // Not 100% sure why we need an ack, but I suspect we need
+            // it to allow us to wait until the operation is complete
+            // before using it again
+            | contract set(@newValue, ack) = {
+                // Clear out valueStore
+                for (_ <- valueStore) {
+                    // Store the new value
+                    valueStore!(newValue)
+
+                    // return confirmation that we have saved the value
+                    | ack!(true)
+                }
+            }
+        }
+    }
+
+    // Now we can store values!
+    //
+    // Strictly speaking, I think we can call these "get" and "set",
+    // but it's nice to name them different values, to avoid confusion...
+    | new getVal, setVal in {
+        // Create a cell, and initialize it
+        MakeCell!(456, *getVal, *setVal)
+
+        // We use "ack" for our own setting and getting fun
+        | new ack, ack' in {
+            // Get value and display it
+            //
+            // I can't help but wonder if this can be simpler
+            getVal!(*ack')
+            | for (@result <- ack') {
+                stdout!(result)
+
+                // I have to put this in the loop to make sure it's
+                // done before I set it to a new value
+
+                // Now set the value to something new
+                | setVal!("Hello!", *ack)
+
+                // and here we use ack to make sure that we wait for the
+                // value will be set...
+                | for (_ <- ack) {
+                    getVal!(*ack)
+                    | for (@result <- ack) {
+                        stdout!(result)
+                    }
+                }
+            }
+        }
+    }
+}
+
