@@ -1,23 +1,6 @@
 
 
 
-
-# Create a new swap file if we have less than 2GB allocated
-currentSWAP=$(swapon --show=SIZE --noheadings --bytes)
-
-if [ ! -f /swapfile ]; then
-	if [ "$currentSWAP" -gt "2048000000" ]; then
-		echo "SWAP is larger than 2GB. No need for additional room"
-	else
-		echo "SWAP is smaller than 2GB. Creating a new SWAP file"
-
-		sudo touch /swapfile
-		dd if=/dev/zero of=/swapfile bs=1024 count=2048000
-		mkswap /swapfile
-		swapon /swapfile
-	fi
-fi
-
 # Install dependencies
 zypper install -y automake cmake
 zypper install -y libapr1 libapr-util1 libapr-util1-devel
@@ -70,7 +53,6 @@ cp java-cup-11b.jar ~/.local/share/java/
 cp java-cup-11b-runtime-2015.03.26.jar ~/.local/share/java/java-cup-11b-runtime.jar
 
 # Setup all environment variables
-
 create_variable_if_missing () {
 
 	# Make sure the /etc/bash.bashrc.local file exists
@@ -92,8 +74,6 @@ create_variable_if_missing () {
 		fi
 	fi
 }
-
-
 
 create_variable_if_missing M2_HOME "\$HOME/.m2"
 create_variable_if_missing JAVA_OPTS "\"-Xms256m -Xmx512m\""

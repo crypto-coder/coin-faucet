@@ -7,6 +7,27 @@ start=`date +%s`
 # Exit immediately if there is an error
 set -e
 
+# Create a new swap file if we have less than 2GB allocated
+currentSWAP=$(swapon --show=SIZE --noheadings --bytes)
+
+if [ ! -f /swapfile ]; then
+	if [ "$currentSWAP" -gt "2048000000" ]; then
+		echo "SWAP is larger than 2GB. No need for additional room"
+	else
+		echo "SWAP is smaller than 2GB. Creating a new SWAP file"
+
+		sudo touch /swapfile
+		dd if=/dev/zero of=/swapfile bs=1024 count=2048000
+		mkswap /swapfile
+	fi
+fi
+
+bigSWAPLoaded=$(swapon --show=NAME --noheadings | grep /swapfile -c)
+if [ $bigSWAPLoaded = 0 ]; then
+    swapon /swapfile
+fi
+
+
 # Grab the current directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 THIS_SCRIPT=`basename "$0"`
