@@ -52,11 +52,13 @@ git pull origin raspberry-pi
 #sbt "project models" compile
 #sbt "project blockStorage" compile
 #sbt "project rspace" compile
-sbt "project roscala" compile
-sbt "project regex" compile
+
+
+#sbt "project roscala" compile
+#sbt "project regex" compile
 sbt "project node" compile
 sbt "project rholangCLI" compile
-sbt "project rspaceBench" compile
+#sbt "project rspaceBench" compile
 
 # There is an issue with the different logback.xml files being configured with inconsequential differences, breaking the build.  Deduplicate them
 #cp ./node/src/main/resources/logback.xml ./rholang/src/main/resources/logback.xml
