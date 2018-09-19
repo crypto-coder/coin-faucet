@@ -4,7 +4,7 @@ echo "-----====:::: Raspberry Pi + RChain setup script ::::====-----"
 echo "=============================================================="
 start=`date +%s`
 
-# Exit immediately if there is an error
+# Verbose logging and exit immediately if there is an error
 set -e
 
 # Create a new swap file if we have less than 2GB allocated
@@ -22,11 +22,10 @@ if [ ! -f /swapfile ]; then
 	fi
 fi
 
-bigSWAPLoaded=$(swapon --show=NAME --noheadings | grep /swapfile -c)
-if [ $bigSWAPLoaded = 0 ]; then
+if [ $(swapon --show=NAME --noheadings | grep -e 'swapfile' -c) = 0 ]; then
+    echo "loading swap"
     swapon /swapfile
 fi
-
 
 # Grab the current directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
