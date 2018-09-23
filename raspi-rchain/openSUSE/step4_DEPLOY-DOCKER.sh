@@ -17,7 +17,7 @@ mkdir -p $HOME/rchain/bootstrap/genesis
 mkdir -p $HOME/rchain/node0
 
 # Install the node configurations in the data storage directories
-cd ../../docker/node-config
+cd ../docker/node-config
 cp bootstrap/bonds.txt $HOME/rchain/bootstrap/genesis/bonds.txt
 cp bootstrap/rnode.toml $HOME/rchain/bootstrap/rnode.toml
 cp node0/rnode.toml $HOME/rchain/node0/rnode.toml
