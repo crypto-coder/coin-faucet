@@ -26,6 +26,19 @@ sbt node/universal:packageZipTarball
 # Unpack the RNode package and install it globally
 cp node/target/universal/rnode-0.6.1.tgz ..
 cd ..
+if [ -d "$(pwd)/rnode-0.6.1" ]; then
+    rm -rf rnode-0.6.1
+fi
 tar xf rnode-0.6.1.tgz
-cd rnode-0.6.1
-cp "$(pwd)/bin/rnode" /usr/local/bin/rnode
+
+# Make sure the /etc/bash.bashrc.local file exists
+if [ ! -f /etc/bash.bashrc.local ]; then
+    touch /etc/bash.bashrc.local
+fi
+
+# Check if rnode is already in /etc/bash.bashrc.local 
+rnode_path_count=$(grep -e "rnode-0.6.1" -c /etc/bash.bashrc.local)
+
+if [ $rnode_path_count = 0 ]; then
+    echo "export PATH=$PATH:$(pwd)/rnode-0.6.1/bin" >> /etc/bash.bashrc.local
+fi
