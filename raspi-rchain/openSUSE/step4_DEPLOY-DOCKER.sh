@@ -3,6 +3,7 @@
 
 # Install Docker environment
 zypper install -y docker-compose docker
+systemctl docker start
 
 # The CLASSPATH is not being passed to the rnode script correctly. Hard-code the CLASSPATH into the app_classpath variable in the Rnode start script
 cd rchain
