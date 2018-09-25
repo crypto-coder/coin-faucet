@@ -1,22 +1,21 @@
 [server]
 host = "localhost"
-port = 40500
-http-port = 40502
-metrics-port = 40503
+port = 40400
+http-port = 40402
+metrics-port = 40403
 no-upnp = true
 default-timeout = 2000
 #bootstrap = "rnode://de6eed5d00cf080fc587eeb412cb31a75fd10358@52.119.8.109:40400"
-standalone = false
-#data-dir = "/root/rchain/node0"
-data-dir = "/var/lib/rnode"
+standalone = true
+data-dir = "/root/rchain/native/bootstrap"
 map-size = 1073741824
 casper-block-store-size = 1073741824
 in-memory-store = false
 max-num-of-connections = 500
 [grpc-server]
 host = "localhost"
-port = 40501
-port-internal = 40504
+port = 40401
+port-internal = 40404
 [tls]
 #certificate = "/var/lib/rnode/certificate.pem"
 #key = "/var/lib/rnode/key.pem"
@@ -24,12 +23,12 @@ port-internal = 40504
 count = 5
 shard-id = "rchain"
 sig-algorithm = "ed25519"
-#bonds-file = "./genesis/bonds.txt"
+bonds-file = "/root/rchain/native/bootstrap/genesis/bonds.txt"
 # wallets-file = ""
 # known = ""
 # public-key = "" # Inferred from private key
 # WARNING!! Do not commit REAL private keys EVER. We'll stop doing this when it becomes practicable.
-private-key = "6807fcdcb98249bbbe98dec53b4d242a3ae38f16f53f45c2b73a695723eb8f99"
+private-key = "a765c42969486d790c6d3a5b486067b5b03eed4943dc5fe9c88b927ea60783ea"
 # For sk files
 # filename -> public key
 # contents -> secret key

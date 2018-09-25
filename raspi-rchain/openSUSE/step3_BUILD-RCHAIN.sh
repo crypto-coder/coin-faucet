@@ -14,13 +14,11 @@ sbt "project node" compile
 #sbt "project rholangCLI" compile
 #sbt "project rspaceBench" compile
 
-# Build the RNode start script
+# Build and package the RNode start script
 sbt "project node" assembly
+sbt node/universal:packageZipTarball
 
-# The CLASSPATH is not being passed to the rnode script correctly. Hard-code the CLASSPATH into the app_classpath variable in the Rnode start script
-sed -i 's@ app_classpath=\"@ app_classpath=\"'"$CLASSPATH"':@g' ./node/target/universal/scripts/bin/rnode
-
-# Package the RNode binary
+# re-Package the RNode binary
 sbt node/universal:packageZipTarball
 
 # Unpack the RNode package and install it globally
@@ -31,14 +29,22 @@ if [ -d "$(pwd)/rnode-0.6.1" ]; then
 fi
 tar xf rnode-0.6.1.tgz
 
+# The CLASSPATH is not being passed to the rnode script correctly. Hard-code the CLASSPATH into the app_classpath variable in the Rnode start script
+sed -i 's@ app_classpath=\"@ app_classpath=\"'"$CLASSPATH"':@g' ./rnode-0.6.1/bin/rnode
+
 # Make sure the /etc/bash.bashrc.local file exists
 if [ ! -f /etc/bash.bashrc.local ]; then
     touch /etc/bash.bashrc.local
 fi
 
 # Check if rnode is already in /etc/bash.bashrc.local 
-rnode_path_count=$(grep -e "rnode-0.6.1" -c /etc/bash.bashrc.local)
-
-if [ $rnode_path_count = 0 ]; then
+rnode_bash_count=$(grep -e "rnode-0.6.1" -c /etc/bash.bashrc.local)
+if [ $rnode_bash_count = 0 ]; then
     echo "export PATH=$PATH:$(pwd)/rnode-0.6.1/bin" >> /etc/bash.bashrc.local
+fi
+
+# Check if rnode is already in PATH
+rnode_path_count=$(echo $PATH | grep -e "rnode-0.6.1" -c)
+if [ $rnode_path_count = 0 ]; then
+    export PATH=$PATH:$(pwd)/rnode-0.6.1/bin
 fi
