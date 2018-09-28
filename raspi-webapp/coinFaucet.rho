@@ -1,0 +1,281 @@
+new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
+
+    contract @"CoinFaucet"(return) = {
+    
+        new coinFaucetController, createdCoins, coinAccounts, coinAwards, ack in {
+            stdout!("Created the CoinFaucet") 
+            
+            |
+            
+            createdCoins!({}) | coinAccounts!({}) | coinAwards!({})
+                
+            |
+            
+            contract @[*coinFaucetController, "createCoin"](@account, @coin, @name, @symbol, @totalSupply, result) = {
+                stdout!("DEBUG - coinFaucetController->createCoin")
+                |
+                for(@coins <- createdCoins){
+                    if (not coins.contains(coin ++ "-name")) {
+                        stdout!("DEBUG - creating a new coin")
+                        |
+                        createdCoins!(coins.union({coin ++ "-name": name, coin ++ "-symbol": symbol, coin ++ "-totalSupply": totalSupply}))
+                    }
+                }
+                |
+                for(@accounts <- coinAccounts){
+                    if (not accounts.contains(account ++ "-" ++ coin)) {
+                        stdout!("DEBUG - adding totalSupply for a new coin to account: " ++ account)
+                        |
+                        coinAccounts!(accounts.union({account ++ "-" ++ coin: totalSupply}))
+                    }
+                }
+                |
+                result!(coin)
+            }
+            
+            |
+            
+            contract @[*coinFaucetController, "getCoinName"](@coin, result) = {                              
+                stdout!("DEBUG - coinFaucetController->getCoinName")
+                |
+                for(@coins <- createdCoins){
+                    if (coins.contains(coin ++ "-name")) {
+                        stdout!("DEBUG - name = " ++ coins.get(coin ++ "-name")) |
+                        result!(coins.get(coin ++ "-name"))
+                    } else {
+                        stdout!("ERROR - No coin with identifier " ++ coin) |
+                        result!("ERROR")
+                    }
+                    |
+                    createdCoins!(coins)
+                }
+            }
+            
+            |
+            
+            contract @[*coinFaucetController, "getCoinSymbol"](@coin, result) = {                              
+                stdout!("DEBUG - coinFaucetController->getCoinSymbol")
+                |
+                for(@coins <- createdCoins){
+                    if (coins.contains(coin ++ "-symbol")) {
+                        stdout!("DEBUG - symbol = " ++ coins.get(coin ++ "-symbol")) |
+                        result!(coins.get(coin ++ "-symbol"))
+                    } else {
+                        stdout!("ERROR - No coin with identifier " ++ coin) |
+                        result!("ERROR - No coin with identifier " ++ coin)
+                    }
+                }
+            }
+            
+            |
+            
+            contract @[*coinFaucetController, "getCoinTotalSupply"](@coin, result) = {                              
+                stdout!("DEBUG - coinFaucetController->getCoinTotalSupply")
+                |
+                for(@coins <- createdCoins){
+                    if (coins.contains(coin ++ "-totalSupply")) {
+                        stdout!("DEBUG - totalSupply = " ++ coins.get(coin ++ "-totalSupply")) |
+                        result!(coins.get(coin ++ "-totalSupply"))
+                    } else {
+                        stdout!("ERROR - No coin with identifier " ++ coin) |
+                        result!("ERROR - No coin with identifier " ++ coin)
+                    }
+                }
+            } 
+            
+            |
+            
+            contract @[*coinFaucetController, "registerCoinAccount"](@account, @coin, result) = {
+                stdout!("DEBUG - coinFaucetController->registerAccount")
+                |
+                for(@accounts <- coinAccounts){
+                    if (accounts.contains(account ++ "-" ++ coin)) {
+                        stdout!("DEBUG - Coin Account already exists")
+                    } else {
+                        stdout!("DEBUG - Coin Account does not exist, creating it")
+                        |
+                        accounts.set(account ++ "-" ++ coin, 0)
+                        |
+                        coinAccounts!(accounts)
+                    }
+                }
+                |
+                result!(account ++ "-" ++ coin)
+            }
+            
+            |
+            
+            contract @[*coinFaucetController, "createCoinAward"](@account, @coin, @amount, @hash, result) = {                                
+                stdout!("DEBUG - coinFaucetController->createCoinAward")
+                |
+                @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
+                |
+                for(_ <- ack){
+                    for(@accounts <- coinAccounts){
+                        stdout!("DEBUG - retrieved accounts from coinAccounts channel")
+                        |
+                        if (amount > accounts.get(account ++ "-" ++ coin)) {
+                            stdout!(accounts.get(account ++ "-" ++ coin))
+                            |
+                            stdout!(amount)
+                            |
+                            stdout!("ERROR - createCoinAward caused OVERDRAFT.")
+                            |
+                            result!("ERROR - createCoinAward caused OVERDRAFT.")
+                        } else {
+                            accounts.set(account ++ "-" ++ coin, accounts.get(account ++ "-" ++ coin)-amount)
+                            |
+                            coinAccounts!(accounts)
+                            |
+                            stdout!("DEBUG - deducted funds from the senders account")
+                            |
+                            for(@awards <- coinAwards){
+                                if (awards.contains(coin ++ "-" ++ hash)) {
+                                    stdout!("DEBUG - adding a new award to an existing award for a coin+hash")
+                                    |
+                                    awards.set(coin ++ "-" ++ hash, awards.get(coin ++ "-" ++ hash)+amount)
+                                    |
+                                    coinAwards!(awards)
+                                    |
+                                    result!(0)
+                                } else {
+                                    stdout!("DEBUG - adding a new award to a new coin+hash")
+                                    |
+                                    awards.set(coin ++ "-" ++ hash, amount)
+                                    |
+                                    coinAwards!(awards)
+                                    |
+                                    result!(0)
+                                }
+                            }
+                        }
+                    }
+                }
+            } 
+            
+            |
+    
+            contract @[*coinFaucetController, "redeemCoinAward"](@account, @coin, @salt, result) = {
+                stdout!("DEBUG - account->redeemCoinAward")
+                |
+                @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
+                |
+                for(@coins <- createdCoins){
+                    new redeemGuess, redeemGuessHash, redeemedAward in {
+                        stdout!("DEBUG - name = " ++ coins.get(coin ++ "-name")) 
+                        |
+                        redeemGuess!(coins.get(coin ++ "-name") ++ salt)
+                        |
+                        for(@guess <- redeemGuess){
+                            @"keccak256Hash"!(guess.toByteArray(), *redeemGuessHash)                                    
+                        }
+                        |
+                        for(@guessHash <- redeemGuessHash){
+                            stdout!("DEBUG - redeemHash = " ++ guessHash)
+                            |
+                            for(@awards <- coinAwards){
+                                if (awards.contains(coin ++ "-" ++ guessHash)) {
+                                    stdout!("DEBUG - hashes match, award is being redeemed")
+                                    |
+                                    stdout!("DEBUG - award amount = " ++ awards.get(coin ++ "-" ++ guessHash))
+                                    |
+                                    redeemedAward!(awards.get(coin ++ "-" ++ guessHash))
+                                    |
+                                    awards.delete(coin ++ "-" ++ guessHash)
+                                    |
+                                    coinAwards!(awards)
+                                    |
+                                    for(@accounts <- coinAccounts){
+                                        stdout!("DEBUG - retrieved accounts from coinAccounts channel")
+                                        |
+                                        stdout!("DEBUG - current coin balance = " ++ accounts.get(account ++ "-" ++ coin))
+                                        |
+                                        for(@award <- redeemedAward){
+                                            accounts.set(account ++ "-" ++ coin, accounts.get(account ++ "-" ++ coin)+award)
+                                            |
+                                            stdout!("DEBUG - new coin balance = " ++ (accounts.get(account ++ "-" ++ coin)+award))
+                                            |
+                                            coinAccounts!(accounts)
+                                            |
+                                            result!(accounts.get(account ++ "-" ++ coin)+award)
+                                        }
+                                    }
+                                } else {
+                                    stdout!("ERROR - award hashes do not match")
+                                    |
+                                    result!("ERROR - award hashes do not match")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            |
+            
+            contract @[*coinFaucetController, "getCoinBalances"](@account, result) = {
+                stdout!("DEBUG - coinFaucetController->getCoinBalances")
+                |
+                result!("ERROR - Function Not Implemented")
+            }
+            
+            |
+
+            contract @[*coinFaucetController, "spendCoin"](@account, @coin, @amount, @receiveAccount, result) = {
+                stdout!("DEBUG - coinFaucetController->spendCoin")
+                |
+                result!("ERROR - Function Not Implemented")
+            }
+            
+            |
+    
+            return!(*coinFaucetController)
+        }
+    }
+    
+    
+    
+    |
+    
+    
+    
+    new coinFaucet, beerToken, beerTokenName, awardSecretCH, secretHash, ack in {
+        stdout!("Creating CoinFaucet") 
+        |
+        @"CoinFaucet"!(*ack) 
+        |
+        for (coinFaucet <- ack){
+            stdout!("CoinFaucet created; RasPi is creating BeerToken") 
+            |      
+            @[*coinFaucet, "createCoin"]!("raspi", "beertoken", "Beer Token", "BRTK", 1000, *ack) 
+            |
+            for(beerToken <- ack) {
+                stdout!("BeerToken created; create a new award") 
+                |
+                @[*coinFaucet, "getCoinName"]!(*beerToken, *ack)
+                |
+                for(beerTokenName <- ack) {
+                    stdout!(*beerTokenName)
+                    |
+                    awardSecretCH!(*beerTokenName ++ "1234")
+                    |
+                    for(@awardSecret <- awardSecretCH){
+                        stdout!("DEBUG - awardSecret = " ++ awardSecret)
+                        |
+                        @"keccak256Hash"!(awardSecret.toByteArray(), *secretHash) 
+                        |
+                        for(@hash <- secretHash){
+                            stdout!("DEBUG - awardHash = " ++ hash)
+                            |
+                            @[*coinFaucet, "createCoinAward"]!("raspi", *beerTokenName, 1, hash, *ack) 
+                            |
+                            for(_ <- ack){
+                                stdout!("Coin Award created")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
