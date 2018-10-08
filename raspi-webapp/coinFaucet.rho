@@ -1,44 +1,45 @@
 new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
 
-    contract @"CoinFaucet"(return) = {
-    
-        new coinFaucetController, createdCoins, coinAccounts, coinAwards, ack in {
-            stdout!("Created the CoinFaucet") 
+    contract @"CoinRegistry"(return) = {
+        new this, allCoins, ack in {
+            stdout!("Created the CoinRegistry") 
             
             |
             
-            createdCoins!({}) | coinAccounts!({}) | coinAwards!({})
+            allCoins!({})
                 
             |
             
-            contract @[*coinFaucetController, "createCoin"](@account, @coin, @name, @symbol, @totalSupply, result) = {
-                stdout!("DEBUG - coinFaucetController->createCoin")
+            contract @[*this, "createCoin"](@coin, @name, @symbol, result) = {
+                stdout!("DEBUG - allCoins->createCoin")
                 |
-                for(@coins <- createdCoins){
+                for(@coins <- allCoins){
                     if (not coins.contains(coin ++ "-name")) {
                         stdout!("DEBUG - creating a new coin")
                         |
-                        createdCoins!(coins.union({coin ++ "-name": name, coin ++ "-symbol": symbol, coin ++ "-totalSupply": totalSupply}))
-                    }
-                }
-                |
-                for(@accounts <- coinAccounts){
-                    if (not accounts.contains(account ++ "-" ++ coin)) {
-                        stdout!("DEBUG - adding totalSupply for a new coin to account: " ++ account)
+                        allCoins!(coins.union({coin ++ "-name": name, coin ++ "-symbol": symbol}))
                         |
-                        coinAccounts!(accounts.union({account ++ "-" ++ coin: totalSupply}))
+                        @"MakeMint"!(*coin, *ack)
+                        |
+                        for(@mint <- ack){
+                            result!(*mint)
+                        }
+                    } else {
+                        stdout!("DEBUG - coin already exists")
+                        |
+                        allCoins!(coins)
+                        |
+                        result!(Nil)
                     }
                 }
-                |
-                result!(coin)
             }
             
             |
             
-            contract @[*coinFaucetController, "getCoinName"](@coin, result) = {                              
-                stdout!("DEBUG - coinFaucetController->getCoinName")
+            contract @[*this, "getCoinName"](@coin, result) = {                              
+                stdout!("DEBUG - allCoins->getCoinName")
                 |
-                for(@coins <- createdCoins){
+                for(@coins <- allCoins){
                     if (coins.contains(coin ++ "-name")) {
                         stdout!("DEBUG - name = " ++ coins.get(coin ++ "-name")) |
                         result!(coins.get(coin ++ "-name"))
@@ -47,66 +48,73 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                         result!("ERROR")
                     }
                     |
-                    createdCoins!(coins)
+                    allCoins!(coins)
                 }
             }
             
             |
             
-            contract @[*coinFaucetController, "getCoinSymbol"](@coin, result) = {                              
-                stdout!("DEBUG - coinFaucetController->getCoinSymbol")
+            contract @[*this, "getCoinSymbol"](@coin, result) = {                              
+                stdout!("DEBUG - allCoins->getCoinSymbol")
                 |
-                for(@coins <- createdCoins){
+                for(@coins <- allCoins){
                     if (coins.contains(coin ++ "-symbol")) {
                         stdout!("DEBUG - symbol = " ++ coins.get(coin ++ "-symbol")) |
                         result!(coins.get(coin ++ "-symbol"))
                     } else {
                         stdout!("ERROR - No coin with identifier " ++ coin) |
-                        result!("ERROR - No coin with identifier " ++ coin)
+                        result!("ERROR")
+                    }
+                    |
+                    allCoins!(coins)
+                }
+            }
+            
+            |
+            
+            contract @[*this, "getAllCoins"](result) = {                              
+                stdout!("DEBUG - allCoins->getAllCoins")
+                |
+                for(@coins <- allCoins){
+                    result!(coins)
+                    |
+                    allCoins!(coins)
+                }
+            }
+            
+            |
+    
+            return!(*this)
+        }
+    }
+    
+    |
+    
+    contract @"CoinFaucet"(@mint, return) = {
+        new this, ack in {    
+            
+            return!(*this)
+    
+            |
+            
+            contract @[*this, "createWallet"](@amount, @algorithm, @publicKey, result) = {
+                stdout!("DEBUG - coinFaucet->createWallet")
+                |
+                new walletPurseCh in {
+                    @(mint, "makePurse")!(amount, *walletPurseCh) 
+                    |
+                    for(@walletPurse <- walletPurseCh) {
+                        stdout!("DEBUG - created a purse and added to a wallet")
+                        |
+                        @"BasicWallet"!(walletPurse, algorithm, publicKey, *result)
                     }
                 }
             }
             
             |
             
-            contract @[*coinFaucetController, "getCoinTotalSupply"](@coin, result) = {                              
-                stdout!("DEBUG - coinFaucetController->getCoinTotalSupply")
-                |
-                for(@coins <- createdCoins){
-                    if (coins.contains(coin ++ "-totalSupply")) {
-                        stdout!("DEBUG - totalSupply = " ++ coins.get(coin ++ "-totalSupply")) |
-                        result!(coins.get(coin ++ "-totalSupply"))
-                    } else {
-                        stdout!("ERROR - No coin with identifier " ++ coin) |
-                        result!("ERROR - No coin with identifier " ++ coin)
-                    }
-                }
-            } 
-            
-            |
-            
-            contract @[*coinFaucetController, "registerCoinAccount"](@account, @coin, result) = {
-                stdout!("DEBUG - coinFaucetController->registerAccount")
-                |
-                for(@accounts <- coinAccounts){
-                    if (accounts.contains(account ++ "-" ++ coin)) {
-                        stdout!("DEBUG - Coin Account already exists")
-                    } else {
-                        stdout!("DEBUG - Coin Account does not exist, creating it")
-                        |
-                        accounts.set(account ++ "-" ++ coin, 0)
-                        |
-                        coinAccounts!(accounts)
-                    }
-                }
-                |
-                result!(account ++ "-" ++ coin)
-            }
-            
-            |
-            
-            contract @[*coinFaucetController, "createCoinAward"](@account, @coin, @amount, @hash, result) = {                                
-                stdout!("DEBUG - coinFaucetController->createCoinAward")
+            contract @[*this, "createCoinAward"](@account, @coin, @amount, @hash, result) = {                                
+                stdout!("DEBUG - coinFaucet->createCoinAward")
                 |
                 @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
                 |
@@ -155,7 +163,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             
             |
     
-            contract @[*coinFaucetController, "redeemCoinAward"](@account, @coin, @salt, result) = {
+            contract @[*this, "redeemCoinAward"](@account, @coin, @salt, result) = {
                 stdout!("DEBUG - account->redeemCoinAward")
                 |
                 @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
@@ -210,26 +218,6 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                     }
                 }
             }
-            
-            |
-            
-            contract @[*coinFaucetController, "getCoinBalances"](@account, result) = {
-                stdout!("DEBUG - coinFaucetController->getCoinBalances")
-                |
-                result!("ERROR - Function Not Implemented")
-            }
-            
-            |
-
-            contract @[*coinFaucetController, "spendCoin"](@account, @coin, @amount, @receiveAccount, result) = {
-                stdout!("DEBUG - coinFaucetController->spendCoin")
-                |
-                result!("ERROR - Function Not Implemented")
-            }
-            
-            |
-    
-            return!(*coinFaucetController)
         }
     }
     
@@ -278,4 +266,380 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             }
         }
     }
+
+    
+    
+    
+    
+    
+    
+    |
+    
+    contract @"NonNegativeNumber"(@init, return) = {
+        new this, valueStore in {
+            contract @(*this, "add")(@x, success) = {
+                if (x >= 0) {
+                    for(@v <- valueStore){
+                        if (v + x > v) {
+                            valueStore!(v + x) | success!(true)
+                        } else {
+                            valueStore!(v) | success!(false) //overflow
+                        }
+                    }
+                } else {
+                    success!(false)
+                }
+            } 
+            
+            |
+            
+            contract @(*this, "sub")(@x, success) = {
+                if (x >= 0) {
+                    for(@v <- valueStore) {
+                        if (x <= v) {
+                            valueStore!(v - x) | success!(true)
+                        } else {
+                            valueStore!(v) | success!(false) //overflow
+                        }
+                    }
+                } else {
+                    success!(false)
+                }
+            } 
+            
+            |
+            
+            contract @(*this, "value")(return) = {
+                for(@v <- valueStore) {
+                    valueStore!(v) | return!(v)
+                }
+            } 
+            
+            |
+            
+            return!(*this) 
+            
+            |
+            
+            match init >= 0 {
+                true => { valueStore!(init) }
+                _ => { valueStore!(0) } //Initial balance is zero if given is negative
+            }
+        }
+    }
+    
+    |
+    
+    contract @("MakeMint", "int2NN")(@x, return) = {
+        new nnCh in {
+            @"NonNegativeNumber"!(x, *nnCh) 
+            | 
+            for(@nn <- nnCh) {
+                return!(nn)
+            }
+        }
+    } 
+    
+    |
+    
+    contract @"MakeMint"(@coinID, return) = {
+        new thisMint, totalSupplyCh, internalMakePurse, decr in {
+            
+            contract @(*thisMint, "makePurse")(@init, return) = {
+                new balanceCh in {
+                    @("MakeMint", "int2NN")!(init, *balanceCh)
+                    |
+                    for(@balance <- balanceCh) {
+                        internalMakePurse!(balance, *return)
+                        |
+                        if(balance > 0){
+                            for(@totalSupply <- totalSupplyCh) {
+                                totalSupplyCh!(totalSupply + balance)
+                            }
+                        }
+                    }
+                }
+            } 
+            
+            |
+            
+            contract @(*thisMint, "getTotalSupply")(return) = {
+                for(@totalSupply <- totalSupplyCh) {
+                    totalSupplyCh!(totalSupply) | return!(*totalSupply)
+                }
+            } 
+            
+            |
+            
+            contract internalMakePurse(@balance, return) = {
+                //balance must be a name that NonNegativeNumber contract is listening on
+                new thisPurse in {
+                    contract @(*thisPurse, *decr)(@amount, success) = { @(balance, "sub")!(amount, *success) } 
+                    
+                    |
+                    
+                    contract @(*thisPurse, "getCoinID")(return) = { return!(*coinID) }
+                    
+                    |
+                    
+                    contract @(*thisPurse, "getBalance")(return) = { @(balance, "value")!(*return) } 
+                    
+                    |
+                    
+                    contract @(*thisPurse, "sprout")(return) = { @(*thisMint, "makePurse")!(0, *return) } 
+                    
+                    |
+                    
+                    contract @(*thisPurse, "split")(@amount, return) = {
+                        new destPurseCh, successCh in {
+                            @(*thisPurse, "sprout")!(*destPurseCh) 
+                            | 
+                            for(@destPurse <- destPurseCh) {
+                                @(destPurse, "deposit")!(amount, *thisPurse, *successCh) 
+                                |
+                                for(@success <- successCh) {
+                                    if (success) {
+                                        return!([destPurse])
+                                    } else {
+                                        return!([])
+                                    }
+                                }
+                            }
+                        }
+                    } 
+            
+                    |
+            
+                    contract @(*thisPurse, "deposit")(@amount, @src, success) = {
+                        new result in {
+                            @(src, *decr)!(amount, *result) //call src decr function.
+                            | 
+                            for(@decrSuccess <- result) {
+                                if (decrSuccess) {
+                                    @(balance, "add")!(amount, *success) // add transferred amount to this purse
+                                } else {
+                                    success!(false) 
+                                }
+                            }
+                        }
+                    } 
+                    
+                    |
+                    
+                    return!(*thisPurse)
+                }
+            } 
+            
+            |
+            
+            totalSupplyCh!(0)
+            
+            |
+            
+            return!(*thisMint)
+        }
+    }
+
+    |
+    
+    contract @"BasicWallet"(@purse, @algorithm, @pk, return) = {
+        new cryptoVerifyCh in {
+            match algorithm {
+                "ed25519" => {
+                    cryptoVerifyCh!(["ed25519Verify"])
+                }
+                "secp256k1" => {
+                    cryptoVerifyCh!(["secp256k1Verify"])
+                }
+                _ => {
+                    cryptoVerifyCh!([])
+                }
+            } 
+            
+            |
+            
+            for(@maybeCryptoVerify <- cryptoVerifyCh) {
+                match maybeCryptoVerify {
+                    []             => { return!([]) }
+                    [cryptoVerify] => {
+                        new basicWallet, verify, nonceCh in {
+                            nonceCh!(-1) 
+                            
+                            |
+                            
+                            contract verify(@nonce, @amount, @retCh, @sig, return) = {
+                                for(@prevNonce <- nonceCh) {
+                                    if (nonce == (prevNonce + 1)) {
+                                        new result, hashOut in {
+                                            @"blake2b256Hash"!([nonce, amount, retCh].toByteArray(), *hashOut)
+                                            |
+                                            for(@hash <- hashOut) {
+                                                @cryptoVerify!(hash, sig.hexToBytes(), pk.hexToBytes(), *result)
+                                                |
+                                                for(@r <- result) {
+                                                    if (r) { nonceCh!(nonce) | return!(true) }
+                                                    else { nonceCh!(prevNonce) | return!(false) }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        nonceCh!(prevNonce) | return!(false)
+                                    }
+                                }
+                            } 
+                            
+                            |
+                            
+                            contract @(*basicWallet, "getNonce")(return) = {
+                                for(@nonce <- nonceCh) {
+                                    nonceCh!(nonce) | return!(nonce)
+                                }
+                            } 
+                            
+                            |
+                            
+                            contract @(*basicWallet, "getBalance")(return) = {
+                                @(purse, "getBalance")!(*return)
+                            } 
+                            
+                            |
+                            
+                            contract @(*basicWallet, "deposit")(@amount, @src, success) = {
+                                @(purse, "deposit")!(amount, src, *success)
+                            } 
+                    
+                            |
+                            
+                            contract @(*basicWallet, "transfer")(@amount, @nonce, @sig, destination, status) = {
+                                new verifyResult in {
+                                    verify!(nonce, amount, *destination, sig, *verifyResult) 
+                                    | 
+                                    for(@verified <- verifyResult) {
+                                        if (verified) { 
+                                            new splitResultCh in {
+                                                @(purse, "split")!(amount, *splitResultCh) 
+                                                |
+                                                for(@splitResult  <- splitResultCh) {
+                                                    match splitResult {
+                                                        []        => { status!("Overdraft") }
+                                                        [payment] => { destination!(payment) | status!("Success") }
+                                                    }
+                                                }
+                                            }
+                                        } else { 
+                                            status!("Invalid signature or nonce") 
+                                        }
+                                    }
+                                }
+                            } 
+                            
+                            |
+                            
+                            return!([*basicWallet])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    |
+    
+    contract @"HashWallet"(@purse, @algorithm, @saltedHash, return) = {
+        new hashCheckCh in {
+            match algorithm {
+                "sha256" => {
+                    hashCheckCh!(["sha256Hash"])
+                }
+                "keccak256" => {
+                    hashCheckCh!(["keccak256Hash"])
+                }
+                "blake2b256" => {
+                    hashCheckCh!(["blake2b256Hash"])
+                }
+                _ => {
+                    hashCheckCh!([])
+                }
+            } 
+            
+            |
+            
+            for(@maybeHashCheck <- hashCheckCh) {
+                match maybeHashCheck  {
+                    []             => { return!([]) }
+                    [hashCheck]    => {
+                        new hashWallet, check in {
+                            
+                            contract check(@salt, return) = {
+                                new coinIDOut, hashOut in {
+                                    @(*purse, "getCoinID")!(*coinIDOut)
+                                    |
+                                    for(@coinID <- coinIDOut) {
+                                        @hashCheck!([coinID, salt].toByteArray(), *hashOut)
+                                        |
+                                        for(@hash <- hashOut){
+                                            if ()
+                                        }
+                                    }
+                                    |
+                                    @"blake2b256Hash"!([nonce, amount, retCh].toByteArray(), *hashOut)
+                                    |
+                                    for(@hash <- hashOut) {
+                                        @hashCheck!(hash, sig.hexToBytes(), pk.hexToBytes(), *result)
+                                        |
+                                        for(@r <- result) {
+                                            if (r) { return!(true) }
+                                            else { return!(false) }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            |
+                            
+                            contract @(*hashWallet, "getBalance")(return) = {
+                                @(purse, "getBalance")!(*return)
+                            } 
+                            
+                            |
+                            
+                            contract @(*hashWallet, "deposit")(@amount, @src, success) = {
+                                @(purse, "deposit")!(amount, src, *success)
+                            } 
+                    
+                            |
+                            
+                            contract @(*hashWallet, "transfer")(@amount, @nonce, @sig, destination, status) = {
+                                new verifyResult in {
+                                    verify!(nonce, amount, *destination, sig, *verifyResult) 
+                                    | 
+                                    for(@verified <- verifyResult) {
+                                        if (verified) { 
+                                            new splitResultCh in {
+                                                @(purse, "split")!(amount, *splitResultCh) 
+                                                |
+                                                for(@splitResult  <- splitResultCh) {
+                                                    match splitResult {
+                                                        []        => { status!("Overdraft") }
+                                                        [payment] => { destination!(payment) | status!("Success") }
+                                                    }
+                                                }
+                                            }
+                                        } else { 
+                                            status!("Invalid signature or nonce") 
+                                        }
+                                    }
+                                }
+                            } 
+                            
+                            |
+                            
+                            return!([*basicWallet])
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
 }
