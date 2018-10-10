@@ -1,0 +1,106 @@
+new test1ID, test3ID, ri(`rho:registry:insertArbitrary`), 
+                      //rs(`rho:registry:insertSigned:ed25519`), 
+                      rl(`rho:registry:lookup`), 
+                      stdout(`rho:io:stdout`), 
+                      stdoutAck(`rho:io:stdoutAck`), ack in { 
+    
+    @"REG_TEST_1"!(*test1ID)
+    |
+    for(@idFromTest1 <- test1ID){
+        @"REG_TEST_2"!(idFromTest1, *ack)
+        |
+        for(_ <- ack){
+            //@"REG_TEST_3"!(*test3ID)
+            //|
+            //for(@idFromTest3 <- test3ID){
+                stdout!("NEED TO ADD INSERT_SIGNED & LOOKUP_SIGNED TESTS")
+            //}
+        }
+    }
+    
+    |
+    
+    contract @"REG_TEST_1"(registryIdentifier) = {
+        stdout!("REG_TEST_1: create arbitrary process X to store in the registry")
+        |
+        new X, Y, innerAck in {
+            stdoutAck!(*X, *innerAck)
+            |
+            for(_ <- innerAck){
+                stdout!("REG_TEST_1: adding X to the registry and getting back a new identifier")
+                |
+                ri!(*X, *Y) 
+                |
+                for(@uri <- Y) {
+                    stdout!("REG_TEST_1: got an identifier for X from the registry")
+                    |
+                    stdout!(uri)
+                    |
+                    registryIdentifier!(uri)
+                }
+            }
+        }
+    }
+    
+    |
+    
+    contract @"REG_TEST_2"(@uri, result) = {
+        stdout!("REG_TEST_2: looking up X in the registry using identifier")
+        |
+        new lookupResponse in {
+            rl!(uri, *lookupResponse)
+            |
+            for(@val <- lookupResponse){
+                stdout!("REG_TEST_2: got X from the registry using identifier")
+                |
+                stdoutAck!(val, *result)
+            }
+        }
+    }
+
+/*
+    |
+    
+    contract @"REG_TEST_3"(registryIdentifier) = {
+        // Secret key:  d039d5c634ad95d968fc18368d81b97aaecd32fc7cf6eec07a97c5ac9f9fcb5b11afb9a5fa2b3e194b701987b3531a93dbdf790dac26f8a2502cfa5d529f6b4d
+        // Public key:  11afb9a5fa2b3e194b701987b3531a93dbdf790dac26f8a2502cfa5d529f6b4d
+        // Nonce:       789
+        // Entry ID:    entry
+        // Signature:   20c3b7da06565933400cb61301ffa14df82ef09b046c8152e02e8047d6f69ee2c2a2e4114db7ceb01eb828dfc98c15e40a502f9d85c58ca03734cab549e85e0d
+        
+        // The signatures here are over the serialized representation of the nonce, value tuple.
+        // To recreate the signatures, you can do something like the following:
+        // val key = Base16.decode("<secret key goes here>")
+        // val toSign: Par = ETuple(Seq(GInt(789), GString("entry")))
+        // val sig = Ed25519.sign(toSign.toByteArray, key)
+        stdout!("REG_TEST_3: creating arbitrary process Z to store in the registry")
+        |
+        new Z, innerAck in {
+            stdoutAck!(*Z, *innerAck)
+            |
+            for(_ <- innerAck){
+                stdout!("REG_TEST_3: adding Z to the registry with a specific identifier")
+                |
+                stdout!("11afb9a5fa2b3e194b701987b3531a93dbdf790dac26f8a2502cfa5d529f6b4d".hexToBytes())
+                |
+                stdout!("20c3b7da06565933400cb61301ffa14df82ef09b046c8152e02e8047d6f69ee2c2a2e4114db7ceb01eb828dfc98c15e40a502f9d85c58ca03734cab549e85e0d".hexToBytes())
+                |
+                stdoutAck!((789, "entry"), *innerAck)
+                |
+                for(_ <- innerAck){
+                    rs!("11afb9a5fa2b3e194b701987b3531a93dbdf790dac26f8a2502cfa5d529f6b4d".hexToBytes(), (789, "entry"), "20c3b7da06565933400cb61301ffa14df82ef09b046c8152e02e8047d6f69ee2c2a2e4114db7ceb01eb828dfc98c15e40a502f9d85c58ca03734cab549e85e0d".hexToBytes(), *innerAck)
+                    |
+                    for(@uri <- Z){
+                        stdout!("REG_TEST_3: got an identifier for Z from the registry")
+                        |
+                        stdout!(uri)
+                        |
+                        registryIdentifier!(uri)
+                    }
+                }
+            }
+        }
+    }
+*/
+}
+
