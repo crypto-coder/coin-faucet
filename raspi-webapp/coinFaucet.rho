@@ -1,8 +1,13 @@
-new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
+new stdout(`rho:io:stdout`), 
+    stdoutAck(`rho:io:stdoutAck`),
+    regInsert(`rho:registry:insertArbitrary`), 
+    regLookup(`rho:registry:lookup`)
+    //rs(`rho:registry:insertSigned:ed25519`) 
+                                                 in {
 
     contract @"CoinRegistry"(return) = {
         new this, allCoins, ack in {
-            stdout!("Created the CoinRegistry") 
+            stdout!("DEBUG - Created the CoinRegistry") 
             
             |
             
@@ -10,8 +15,8 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                 
             |
             
-            contract @[*this, "createCoin"](@coin, @name, @symbol, result) = {
-                stdout!("DEBUG - allCoins->createCoin")
+            contract @(*this, "createCoin")(@coin, @name, @symbol, result) = {
+                stdout!("DEBUG - CoinRegistry->createCoin")
                 |
                 for(@coins <- allCoins){
                     if (not coins.contains(coin ++ "-name")) {
@@ -19,10 +24,10 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                         |
                         allCoins!(coins.union({coin ++ "-name": name, coin ++ "-symbol": symbol}))
                         |
-                        @"MakeMint"!(*coin, *ack)
+                        @"MakeMint"!(coin, *ack)
                         |
                         for(@mint <- ack){
-                            result!(*mint)
+                            result!(mint)
                         }
                     } else {
                         stdout!("DEBUG - coin already exists")
@@ -36,7 +41,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             
             |
             
-            contract @[*this, "getCoinName"](@coin, result) = {                              
+            contract @(*this, "getCoinName")(@coin, result) = {                              
                 stdout!("DEBUG - allCoins->getCoinName")
                 |
                 for(@coins <- allCoins){
@@ -54,7 +59,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             
             |
             
-            contract @[*this, "getCoinSymbol"](@coin, result) = {                              
+            contract @(*this, "getCoinSymbol")(@coin, result) = {                              
                 stdout!("DEBUG - allCoins->getCoinSymbol")
                 |
                 for(@coins <- allCoins){
@@ -72,7 +77,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             
             |
             
-            contract @[*this, "getAllCoins"](result) = {                              
+            contract @(*this, "getAllCoins")(result) = {                              
                 stdout!("DEBUG - allCoins->getAllCoins")
                 |
                 for(@coins <- allCoins){
@@ -91,14 +96,17 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
     |
     
     contract @"CoinFaucet"(@mint, return) = {
-        new this, ack in {    
+        new this, coinAwards, ack in {    
+            stdout!("DEBUG - Created the CoinFaucet") 
             
-            return!(*this)
+            |
+            
+            coinAwards!({})
     
             |
             
-            contract @[*this, "createWallet"](@amount, @algorithm, @publicKey, result) = {
-                stdout!("DEBUG - coinFaucet->createWallet")
+            contract @(*this, "createWallet")(@amount, @algorithm, @saltedHash, result) = {
+                stdout!("DEBUG - CoinFaucet->createWallet")
                 |
                 new walletPurseCh in {
                     @(mint, "makePurse")!(amount, *walletPurseCh) 
@@ -106,118 +114,111 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                     for(@walletPurse <- walletPurseCh) {
                         stdout!("DEBUG - created a purse and added to a wallet")
                         |
-                        @"BasicWallet"!(walletPurse, algorithm, publicKey, *result)
+                        @"HashWallet"!(walletPurse, algorithm, saltedHash, *result)
+                        //@"BasicWallet"!(walletPurse, algorithm, publicKey, *result)
                     }
                 }
             }
             
             |
             
-            contract @[*this, "createCoinAward"](@account, @coin, @amount, @hash, result) = {                                
-                stdout!("DEBUG - coinFaucet->createCoinAward")
+            contract @(*this, "createCoinAward")(@purse, @saltedHash, result) = {                                
+                stdout!("DEBUG - CoinFaucet->createCoinAward")
                 |
-                @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
-                |
-                for(_ <- ack){
-                    for(@accounts <- coinAccounts){
-                        stdout!("DEBUG - retrieved accounts from coinAccounts channel")
+                for(@awards <- coinAwards){
+                    // Make sure the existing coin awards does not already contain the saltedHash
+                    if (awards.contains(saltedHash)) {
+                        stdout!("ERROR - coinAwards already contains the provided saltedHash")
                         |
-                        if (amount > accounts.get(account ++ "-" ++ coin)) {
-                            stdout!(accounts.get(account ++ "-" ++ coin))
-                            |
-                            stdout!(amount)
-                            |
-                            stdout!("ERROR - createCoinAward caused OVERDRAFT.")
-                            |
-                            result!("ERROR - createCoinAward caused OVERDRAFT.")
-                        } else {
-                            accounts.set(account ++ "-" ++ coin, accounts.get(account ++ "-" ++ coin)-amount)
-                            |
-                            coinAccounts!(accounts)
+                        coinAwards!(awards)
+                        |
+                        result!("ERROR - coinAwards already contains the provided saltedHash")
+                    } else {
+                        //C reate a HashedWallet
+                        new hashWallet, registryIdentifier in {
+                            @"HashWallet"!(purse, "keccak256", saltedHash, *hashWallet)
                             |
                             stdout!("DEBUG - deducted funds from the senders account")
                             |
-                            for(@awards <- coinAwards){
-                                if (awards.contains(coin ++ "-" ++ hash)) {
-                                    stdout!("DEBUG - adding a new award to an existing award for a coin+hash")
+                            for(@wallet <- hashWallet) {
+                                // Add the HashedWallet to the Registry and get back its ID
+                                regInsert!(wallet, *registryIdentifier) 
+                                |
+                                for(@{uri /\ Uri} <- registryIdentifier) {
+                                    stdout!("DEBUG - registered hashWallet in the registry and added a new coinAward")
                                     |
-                                    awards.set(coin ++ "-" ++ hash, awards.get(coin ++ "-" ++ hash)+amount)
-                                    |
-                                    coinAwards!(awards)
-                                    |
-                                    result!(0)
-                                } else {
-                                    stdout!("DEBUG - adding a new award to a new coin+hash")
-                                    |
-                                    awards.set(coin ++ "-" ++ hash, amount)
-                                    |
-                                    coinAwards!(awards)
-                                    |
-                                    result!(0)
+                                    coinAwards!(awards.set(saltedHash, uri))
                                 }
+                                |
+                                // Return the HashedWallet
+                                result!(wallet)
                             }
                         }
                     }
                 }
-            } 
+            }
             
             |
     
-            contract @[*this, "redeemCoinAward"](@account, @coin, @salt, result) = {
-                stdout!("DEBUG - account->redeemCoinAward")
+            contract @(*this, "redeemCoinAward")(@wallet, @saltedHash, @salt, result) = {
+                stdout!("DEBUG - CoinFaucet->redeemCoinAward")
                 |
-                @[*coinFaucetController, "registerCoinAccount"]!(account, coin, *ack)
-                |
-                for(@coins <- createdCoins){
-                    new redeemGuess, redeemGuessHash, redeemedAward in {
-                        stdout!("DEBUG - name = " ++ coins.get(coin ++ "-name")) 
+                for(@awards <- coinAwards){
+                    // Make sure the existing coin award exists for the saltedHash
+                    if (not awards.contains(saltedHash)) {
+                        stdout!("ERROR - coinAwards does not contains the provided saltedHash")
                         |
-                        redeemGuess!(coins.get(coin ++ "-name") ++ salt)
+                        coinAwards!(awards)
                         |
-                        for(@guess <- redeemGuess){
-                            @"keccak256Hash"!(guess.toByteArray(), *redeemGuessHash)                                    
-                        }
-                        |
-                        for(@guessHash <- redeemGuessHash){
-                            stdout!("DEBUG - redeemHash = " ++ guessHash)
+                        result!("ERROR - coinAwards does not the provided saltedHash")
+                    } else {
+                        new registryID, awardWallet, awardAmount, redeemResult in {
+                            // Get the registry ID for the salted hash
+                            registryID!(awards.get(saltedHash))
                             |
-                            for(@awards <- coinAwards){
-                                if (awards.contains(coin ++ "-" ++ guessHash)) {
-                                    stdout!("DEBUG - hashes match, award is being redeemed")
+                            for(@idForHash <- registryID){
+                                stdout!("DEBUG - retrieved the registry ID for the requested saltedHash")
+                                |
+                                regLookup!(idForHash, *awardWallet)
+                                |
+                                for(@hashWallet <- awardWallet){
+                                    stdout!("DEBUG - retrieved the wallet from the registry by ID")
                                     |
-                                    stdout!("DEBUG - award amount = " ++ awards.get(coin ++ "-" ++ guessHash))
+                                    @(hashWallet, "getBalance")!(*awardAmount)
                                     |
-                                    redeemedAward!(awards.get(coin ++ "-" ++ guessHash))
-                                    |
-                                    awards.delete(coin ++ "-" ++ guessHash)
-                                    |
-                                    coinAwards!(awards)
-                                    |
-                                    for(@accounts <- coinAccounts){
-                                        stdout!("DEBUG - retrieved accounts from coinAccounts channel")
+                                    for(@amount <- awardAmount){
+                                        stdout!("DEBUG - got the award amount held in the wallet")
                                         |
-                                        stdout!("DEBUG - current coin balance = " ++ accounts.get(account ++ "-" ++ coin))
+                                        @(hashWallet, "transfer")!(amount, salt, wallet, *redeemResult)
                                         |
-                                        for(@award <- redeemedAward){
-                                            accounts.set(account ++ "-" ++ coin, accounts.get(account ++ "-" ++ coin)+award)
+                                        for(@redeemed <- redeemResult){
+                                            stdout!("DEBUG - completed the wallet redeem request")
                                             |
-                                            stdout!("DEBUG - new coin balance = " ++ (accounts.get(account ++ "-" ++ coin)+award))
-                                            |
-                                            coinAccounts!(accounts)
-                                            |
-                                            result!(accounts.get(account ++ "-" ++ coin)+award)
+                                            if (redeemed == "Success"){
+                                                stdout!("DEBUG - Successfully withdrew the coin award")
+                                                |
+                                                coinAwards!(awards.delete(saltedHash))
+                                                |
+                                                result!(wallet)
+                                            } else {
+                                                stdout!("ERROR - Failed to withdraw the coin award")
+                                                |
+                                                coinAwards!(awards)
+                                                |
+                                                result!(redeemed)
+                                            }
                                         }
                                     }
-                                } else {
-                                    stdout!("ERROR - award hashes do not match")
-                                    |
-                                    result!("ERROR - award hashes do not match")
                                 }
                             }
                         }
                     }
                 }
             }
+        
+            |
+            
+            return!(*this)
         }
     }
     
@@ -227,38 +228,84 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
     
     
     
-    new coinFaucet, beerToken, beerTokenName, awardSecretCH, secretHash, ack in {
-        stdout!("Creating CoinFaucet") 
+    new coinRegistry, beerTokenMint, coinFaucet, 
+        faucetWallet, faucetWalletHashOut,
+        phoneWallet, phoneWalletHashOut,
+        coinAwardPurse, coinAwardHashOut,
+        listBalances, ack in {
+            
+        
+        contract listBalances(@faucetWallet, @phoneWallet) = {
+            new FwalletBalance, PwalletBalance in {
+                @(faucetWallet, "getBalance")!(*FwalletBalance)
+                |
+                @(phoneWallet, "getBalance")!(*PwalletBalance)
+                |
+                stdoutAck!("DEBUG - listing balances", *ack)
+                |
+                for(@Fbalance <- FwalletBalance; @Pbalance <- PwalletBalance){
+                    stdout!(Fbalance)
+                    |
+                    stdout!(Pbalance)
+                }
+            }
+        }
+        
         |
-        @"CoinFaucet"!(*ack) 
+        
+        @"CoinRegistry"!(*coinRegistry)
         |
-        for (coinFaucet <- ack){
-            stdout!("CoinFaucet created; RasPi is creating BeerToken") 
-            |      
-            @[*coinFaucet, "createCoin"]!("raspi", "beertoken", "Beer Token", "BRTK", 1000, *ack) 
+        for(@registry <- coinRegistry) {
+            @(registry, "createCoin")!("beertoken", "Beer Token", "BRTK", *beerTokenMint)
             |
-            for(beerToken <- ack) {
-                stdout!("BeerToken created; create a new award") 
+            for(@mint <- beerTokenMint){
+                @"CoinFaucet"!(mint, *coinFaucet)
                 |
-                @[*coinFaucet, "getCoinName"]!(*beerToken, *ack)
-                |
-                for(beerTokenName <- ack) {
-                    stdout!(*beerTokenName)
+                for(@faucet <- coinFaucet){
+                    @"keccak256Hash"!(["beertoken", "abc"].toByteArray(), *faucetWalletHashOut)
                     |
-                    awardSecretCH!(*beerTokenName ++ "1234")
-                    |
-                    for(@awardSecret <- awardSecretCH){
-                        stdout!("DEBUG - awardSecret = " ++ awardSecret)
+                    for(@faucetWalletHash <- faucetWalletHashOut){
+                        stdout!("DEBUG - faucetWallet hash")
                         |
-                        @"keccak256Hash"!(awardSecret.toByteArray(), *secretHash) 
+                        stdout!(faucetWalletHash)
                         |
-                        for(@hash <- secretHash){
-                            stdout!("DEBUG - awardHash = " ++ hash)
+                        @(faucet, "createWallet")!(1000, "keccak256", faucetWalletHash, *faucetWallet)
+                        |
+                        for(@Fwallet <- faucetWallet){
+                            @"keccak256Hash"!(["beertoken", "xyz"].toByteArray(), *phoneWalletHashOut)
                             |
-                            @[*coinFaucet, "createCoinAward"]!("raspi", *beerTokenName, 1, hash, *ack) 
-                            |
-                            for(_ <- ack){
-                                stdout!("Coin Award created")
+                            for(@phoneWalletHash <- phoneWalletHashOut){
+                                stdout!("DEBUG - phoneWallet hash")
+                                |
+                                stdout!(phoneWalletHash)
+                                |
+                                @(faucet, "createWallet")!(0, "keccak256", phoneWalletHash, *phoneWallet)
+                                |
+                                for(@Pwallet <- phoneWallet){
+                                    listBalances!(Fwallet, Pwallet)
+                                    |
+                                    @"keccak256Hash"!(["beertoken", "123"].toByteArray(), *coinAwardHashOut)
+                                    |
+                                    for(@coinAwardHash <- coinAwardHashOut){
+                                        stdout!("DEBUG - coinAward hash")
+                                        |
+                                        stdout!(coinAwardHash)
+                                        |
+                                        @(Fwallet, "transfer")!(5, "abc", *coinAwardPurse, *ack)
+                                        |
+                                        for(@awardPurse <- coinAwardPurse){
+                                            @(faucet, "createCoinAward")!(awardPurse, coinAwardHash, *ack)
+                                            |
+                                            for(_ <- ack){
+                                                @(faucet, "redeemCoinAward")!(Pwallet, coinAwardHash, "123", *ack)
+                                                |
+                                                for(@redeemResult <- ack){
+                                                    listBalances!(Fwallet, Pwallet)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -330,24 +377,12 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
     
     |
     
-    contract @("MakeMint", "int2NN")(@x, return) = {
-        new nnCh in {
-            @"NonNegativeNumber"!(x, *nnCh) 
-            | 
-            for(@nn <- nnCh) {
-                return!(nn)
-            }
-        }
-    } 
-    
-    |
-    
     contract @"MakeMint"(@coinID, return) = {
         new thisMint, totalSupplyCh, internalMakePurse, decr in {
             
             contract @(*thisMint, "makePurse")(@init, return) = {
                 new balanceCh in {
-                    @("MakeMint", "int2NN")!(init, *balanceCh)
+                    @(*thisMint, "int2NN")!(init, *balanceCh)
                     |
                     for(@balance <- balanceCh) {
                         internalMakePurse!(balance, *return)
@@ -360,12 +395,24 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                     }
                 }
             } 
+    
+            |
+            
+            contract @(*thisMint, "int2NN")(@x, return) = {
+                new nnCh in {
+                    @"NonNegativeNumber"!(x, *nnCh) 
+                    | 
+                    for(@nn <- nnCh) {
+                        return!(nn)
+                    }
+                }
+            } 
             
             |
             
             contract @(*thisMint, "getTotalSupply")(return) = {
                 for(@totalSupply <- totalSupplyCh) {
-                    totalSupplyCh!(totalSupply) | return!(*totalSupply)
+                    totalSupplyCh!(totalSupply) | return!(totalSupply)
                 }
             } 
             
@@ -378,7 +425,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                     
                     |
                     
-                    contract @(*thisPurse, "getCoinID")(return) = { return!(*coinID) }
+                    contract @(*thisPurse, "getCoinID")(return) = { return!(coinID) }
                     
                     |
                     
@@ -566,30 +613,20 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
             
             for(@maybeHashCheck <- hashCheckCh) {
                 match maybeHashCheck  {
-                    []             => { return!([]) }
+                    []             => { return!(Nil) }
                     [hashCheck]    => {
-                        new hashWallet, check in {
+                        new hashWallet, checkHash in {
                             
-                            contract check(@salt, return) = {
+                            contract checkHash(@salt, return) = {
                                 new coinIDOut, hashOut in {
-                                    @(*purse, "getCoinID")!(*coinIDOut)
+                                    @(purse, "getCoinID")!(*coinIDOut)
                                     |
                                     for(@coinID <- coinIDOut) {
                                         @hashCheck!([coinID, salt].toByteArray(), *hashOut)
                                         |
                                         for(@hash <- hashOut){
-                                            if ()
-                                        }
-                                    }
-                                    |
-                                    @"blake2b256Hash"!([nonce, amount, retCh].toByteArray(), *hashOut)
-                                    |
-                                    for(@hash <- hashOut) {
-                                        @hashCheck!(hash, sig.hexToBytes(), pk.hexToBytes(), *result)
-                                        |
-                                        for(@r <- result) {
-                                            if (r) { return!(true) }
-                                            else { return!(false) }
+                                            if (hash == saltedHash){ return!(true)   
+                                            } else { return!(false) }
                                         }
                                     }
                                 }
@@ -609,12 +646,14 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                     
                             |
                             
-                            contract @(*hashWallet, "transfer")(@amount, @nonce, @sig, destination, status) = {
-                                new verifyResult in {
-                                    verify!(nonce, amount, *destination, sig, *verifyResult) 
+                            contract @(*hashWallet, "transfer")(@amount, @salt, destination, status) = {
+                                stdout!("DEBUG - HashWallet.trasfer")
+                                |
+                                new checkHashResult in {
+                                    checkHash!(salt, *checkHashResult) 
                                     | 
-                                    for(@verified <- verifyResult) {
-                                        if (verified) { 
+                                    for(@hashIsCorrect <- checkHashResult) {
+                                        if (hashIsCorrect) { 
                                             new splitResultCh in {
                                                 @(purse, "split")!(amount, *splitResultCh) 
                                                 |
@@ -626,7 +665,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                                                 }
                                             }
                                         } else { 
-                                            status!("Invalid signature or nonce") 
+                                            status!("Invalid salt for hashed wallet") 
                                         }
                                     }
                                 }
@@ -634,7 +673,7 @@ new stdout(`rho:io:stdout`), stdoutAck(`rho:io:stdoutAck`) in {
                             
                             |
                             
-                            return!([*basicWallet])
+                            return!(*hashWallet)
                         }
                     }
                 }
