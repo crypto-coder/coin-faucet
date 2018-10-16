@@ -1,6 +1,6 @@
 "use strict"
 
-const {RNode, RHOCore, logged} = require("rchain-api") //npm install --save github:JoshOrndorff/RChain-API
+const {RNode, RHOCore, logged} = require("rchain-api");
 const express = require('express');
 const bodyParser = require('body-parser');
 const grpc = require('grpc');
@@ -14,7 +14,8 @@ var uiPort = process.argv[4] ? process.argv[4] : 8080
 var myNode = RNode(grpc, {host, port})
 var app = express()
 
-var coinFaucetID = "coinFaucet-" + (new Date()).getTime();
+// CoinRegistry unforgeable names
+var COIN_REGISTRY_UNAME = null;
 
 // Serve static assets like index.html and page.js from root directory
 app.use(express.static(__dirname))
@@ -26,18 +27,41 @@ app.listen(uiPort, () => {
   console.log(`Connected to RNode at ${host}:${port}.`)
   console.log(`Userinterface on port ${uiPort}`)
 
-  var code = `@"CoinFaucet"!("${coinFaucetID}", 0)`
-  var deployData = {term: code,
-                    timestamp: new Date().valueOf()
-                    // from: '0x1',
-                    // nonce: 0,
-                   }
+  // Create the CoinRegistry return channel
+  var coinRegistryChannel = Math.random().toString(36).substring(7);
 
-  myNode.doDeploy(deployData).then(result => {
-    return myNode.createBlock()
-  }).then(result => {
-    console.log("CoinFaucet initialized on blockchain as : " + coinFaucetID);
-    console.log(result);
+
+  //  rho:id:yg4w3qmdyddks11c5f4uqp7nb7pq5ygdf4gecwk398sixr7wfmw144
+  var deployCoinRegistryData = {
+    term: `new rl(\`rho:registry:lookup\`), ack in {
+                rl!(\`rho:id:yg4w3qmdyddks11c5f4uqp7nb7pq5ygdf4gecwk398sixr7wfmw144\`, *ack)
+                |
+                for(BigTest <- ack){
+                  BigTest!("")
+                }
+              }`,
+    timestamp: new Date().valueOf(),
+    from: '0x1',
+    nonce: 0,
+    phloPrice: { value: 1 },
+    phloLimit: { value: 100000000 }
+  };
+
+  // Deploy the CoinRegistry contract
+  myNode.doDeploy(deployCoinRegistryData).then(registryResult => {
+    console.log("CoinRegistry initialized on blockchain as : " + coinRegistryChannel);
+    console.log(registryResult);
+
+    // Get the CoinRegistry unforgeable name from the channel
+    return myNode.listenTest(coinRegistryChannel);
+  }).then((blockResults) => {
+    if(blockResults.length === 0){
+      console.log("ERROR: Failed to create the CoinRegistry.");
+      return;
+    }
+    var lastBlock = blockResults.slice(-1).pop();
+    var lastDatum = lastBlock.postBlockData.slice(-1).pop();
+    COIN_REGISTRY_UNAME = RHOCore.toRholang(lastDatum);
   }).catch(oops => { console.log(oops); })
 })
 
@@ -49,7 +73,7 @@ app.post('/createCoin', (req, res) => {
   var ack = Math.random().toString(36).substring(7);
   
   var coinID = getCoinID(req.body.name);
-  var code = `@["${coinFaucetID}", "createCoin"]!("${req.body.account}","${coinID}","${req.body.name}","${req.body.symbol}","${req.body.totalSupply}","${ack}")`
+  var code = `@["${coinFaucetID}", "createCoin"]!("${req.body.account}","${coinID}","${req.body.name}","${req.body.symbol}",${req.body.totalSupply},"${ack}")`
   var deployData = {term: code,
                     timestamp: new Date().valueOf()
                     // from: '0x1',
@@ -103,7 +127,7 @@ app.post('/createCoinAward', (req, res) => {
   var hash = keccak256(saltedCoinName);
   console.log(hash);
 
-  var code = `@["${coinFaucetID}", "createCoinAward"]!("${req.body.account}","${req.body.coin}","${req.body.amount}","${req.body.salt}","${ack}")`
+  var code = `@["${coinFaucetID}", "createCoinAward"]!("${req.body.account}","${req.body.coin}",${req.body.amount},"${req.body.salt}","${ack}")`
   var deployData = {term: code,
                   timestamp: new Date().valueOf()
                   // from: '0x1',
@@ -116,7 +140,6 @@ app.post('/createCoinAward', (req, res) => {
     res.json({'message':result});
   }).catch(oops => { console.log(oops); })
 });
-
 
 
 app.post('/getCoinAwards', (req, res) => {
@@ -145,6 +168,36 @@ app.post('/getCoinAwards', (req, res) => {
     var lastDatum = lastBlock.postBlockData.slice(-1).pop();
     var awardList = RHOCore.toRholang(lastDatum);
     res.json({'message':coinAwardResults, 'awardList':awardList});
+  }).catch(oops => { console.log(oops); })
+});
+
+
+app.post('/getCoinAccounts', (req, res) => {
+  var ack = Math.random().toString(36).substring(7);
+  
+  var coinAccountResults = null;
+  var code = `@["${coinFaucetID}", "getCoinAccounts"]!("${ack}")`
+  var deployData = {term: code,
+                    timestamp: new Date().valueOf()
+                    // from: '0x1',
+                    // nonce: 0,
+                   }
+
+  myNode.doDeploy(deployData).then(result => {
+    return myNode.createBlock();
+  }).then(result => {
+    coinAccountResults = result;
+    return myNode.listenForDataAtName(ack)
+  }).then((blockResults) => {
+    if(blockResults.length === 0){
+      res.code = 404;
+      res.json({"message":"No data found"});
+      return;
+    }
+    var lastBlock = blockResults.slice(-1).pop();
+    var lastDatum = lastBlock.postBlockData.slice(-1).pop();
+    var accountList = RHOCore.toRholang(lastDatum);
+    res.json({'message':coinAccountResults, 'accountList':accountList});
   }).catch(oops => { console.log(oops); })
 });
 
@@ -180,10 +233,6 @@ app.post('/redeemCoinAward', (req, res) => {
 
 
 
-
-
-
-
 app.post('/createTokenAward', (req, res) => {
   // Generate a public ack channel
   // TODO this should be unforgeable. Can I make one from JS?
@@ -215,21 +264,6 @@ app.post('/createTokenAward', (req, res) => {
 })
 
 
-
-app.post("/set", (req, res) => {
-  var code = `@["${req.query.name}", "newStatus"]!("${req.query.status}", "ack")`
-  var deployData = {term: code,
-                    timestamp: new Date().valueOf()
-                    // from: '0x1',
-                    // nonce: 0,
-                   }
-
-  myNode.doDeploy(deployData).then(result => {
-    return myNode.createBlock()
-  }).then(result => {
-    res.send("Status updated successfully")
-  }).catch(oops => { console.log(oops); })
-})
 
 function getCoinID(name){
   return name.toLowerCase().replace(/\W/g, '');

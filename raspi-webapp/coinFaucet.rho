@@ -2,8 +2,12 @@ new stdout(`rho:io:stdout`),
     stdoutAck(`rho:io:stdoutAck`),
     regInsert(`rho:registry:insertArbitrary`), 
     regLookup(`rho:registry:lookup`)
-    //rs(`rho:registry:insertSigned:ed25519`) 
+    //regInsertSigned(`rho:registry:insertSigned:ed25519`)
                                                  in {
+
+    stdout!("starting")
+    
+    |
 
     contract @"CoinRegistry"(return) = {
         new this, allCoins, ack in {
@@ -90,6 +94,10 @@ new stdout(`rho:io:stdout`),
             |
     
             return!(*this)
+            
+            |
+            
+            stdout!(*this)
         }
     }
     
@@ -227,7 +235,7 @@ new stdout(`rho:io:stdout`),
     |
     
     
-    
+    // START INTEGRATION TESTS
     new coinRegistry, beerTokenMint, coinFaucet, 
         faucetWallet, faucetWalletHashOut,
         phoneWallet, phoneWalletHashOut,
@@ -313,7 +321,7 @@ new stdout(`rho:io:stdout`),
             }
         }
     }
-
+    // END INTEGRATION TESTS
     
     
     

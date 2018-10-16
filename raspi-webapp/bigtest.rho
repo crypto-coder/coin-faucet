@@ -1,0 +1,21 @@
+new stdout(`rho:io:stdout`),
+    regInsert(`rho:registry:insertArbitrary`), 
+    regLookup(`rho:registry:lookup`) in {
+    
+    new BigTest, registryIdentifier in {
+    
+        regInsert!(*BigTest, *registryIdentifier) 
+          
+        |
+        
+        for(@{uri /\ Uri} <- registryIdentifier) {
+            stdout!(["DEBUG - got an identifier = ", uri])
+        }
+        
+        |
+        
+        contract BigTest(@return) = {
+            stdout!(42)
+        }
+    }
+}
