@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "fresh": "rm -rf .rnode/rspace .rnode/casper-block-store && rnode run --data_dir .rnode",
-    "deploy-contract": "rnode deploy --from 0x0 --nonce 0 --phlo-limit 0 --phlo-price 0 coinFaucet.rho && rnode propose",
+    "deploy-contract": "rnode deploy --from 0x0 --nonce 0 --phlo-limit 10000000 --phlo-price 1 coinFaucet.rho && rnode propose",
     "start": "node main.js"
   },
   "repository": {
@@ -21,6 +21,9 @@
     "body-parser": "^1.18.3",
     "express": "^4.16.3",
     "grpc": "^1.14.1",
-    "js-sha3": "^0.8.0"
+    "hex-to-array-buffer": "^1.1.0",
+    "js-sha3": "^0.8.0",
+    "mongodb": "^3.1.8",
+    "rchain-api": "^0.7.1-beta.2"
   }
 }

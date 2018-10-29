@@ -1,10 +1,9 @@
 "use strict"
 
-const {RNode, RHOCore, logged} = require("rchain-api");
+const {RNode, RHOCore, b2h, h2b} = require("rchain-api");
 const express = require('express');
 const bodyParser = require('body-parser');
 const grpc = require('grpc');
-const keccak256 = require('js-sha3').keccak256;
 
 // Setup server parameters
 var host   = process.argv[2] ? process.argv[2] : "localhost"
@@ -14,77 +13,83 @@ var uiPort = process.argv[4] ? process.argv[4] : 8080
 var myNode = RNode(grpc, {host, port})
 var app = express()
 
-// CoinRegistry unforgeable names
-var COIN_REGISTRY_UNAME = null;
+// CoinFaucet Lookup ID
+var COIN_FAUCET_ID = "";
 
 // Serve static assets like index.html and page.js from root directory
-app.use(express.static(__dirname))
+app.use(express.static(__dirname));
 
 app.use(bodyParser.json());
 
 app.listen(uiPort, () => {
-  console.log("RChain status dapp started.")
-  console.log(`Connected to RNode at ${host}:${port}.`)
-  console.log(`Userinterface on port ${uiPort}`)
-
-  // Create the CoinRegistry return channel
-  var coinRegistryChannel = Math.random().toString(36).substring(7);
-
-
-  //  rho:id:yg4w3qmdyddks11c5f4uqp7nb7pq5ygdf4gecwk398sixr7wfmw144
-  var deployCoinRegistryData = {
-    term: `new rl(\`rho:registry:lookup\`), ack in {
-                rl!(\`rho:id:yg4w3qmdyddks11c5f4uqp7nb7pq5ygdf4gecwk398sixr7wfmw144\`, *ack)
-                |
-                for(BigTest <- ack){
-                  BigTest!("")
-                }
-              }`,
-    timestamp: new Date().valueOf(),
-    from: '0x1',
-    nonce: 0,
-    phloPrice: { value: 1 },
-    phloLimit: { value: 100000000 }
-  };
-
-  // Deploy the CoinRegistry contract
-  myNode.doDeploy(deployCoinRegistryData).then(registryResult => {
-    console.log("CoinRegistry initialized on blockchain as : " + coinRegistryChannel);
-    console.log(registryResult);
-
-    // Get the CoinRegistry unforgeable name from the channel
-    return myNode.listenTest(coinRegistryChannel);
-  }).then((blockResults) => {
-    if(blockResults.length === 0){
-      console.log("ERROR: Failed to create the CoinRegistry.");
-      return;
-    }
-    var lastBlock = blockResults.slice(-1).pop();
-    var lastDatum = lastBlock.postBlockData.slice(-1).pop();
-    COIN_REGISTRY_UNAME = RHOCore.toRholang(lastDatum);
-  }).catch(oops => { console.log(oops); })
-})
+  console.log("RChain coin-faucet dapp started.");
+  console.log(`Connected to RNode at ${host}:${port}.`);
+  console.log(`Userinterface on port ${uiPort}`);
+  
+  // Retrieve all the blocks from the blockchain (hopefully less than 10000)
+  return myNode.getAllBlocks(10000).then(blockList => {
+    // Get the blockhash from the block after the genesis block (blockList.length - 2)
+    return myNode.getBlock( blockList[blockList.length-2].blockHash );
+  }).then(requestedBlock => {
+    // Extract the tuplespace from the retrieved block
+    var tuplespace = requestedBlock.blockInfo.tupleSpaceDump;
+    // Locate the first registered ID in the tuplespace, assume it is the CoinFaucet ID created when the smart contract was deployed
+    COIN_FAUCET_ID = tuplespace.substring(tuplespace.indexOf('`rho:id')+1, tuplespace.indexOf('`', tuplespace.indexOf('`rho:id')+1));
+    console.log("CoinFaucet lookup ID = " + COIN_FAUCET_ID);
+  }).catch(err => {
+    console.log("ERROR: Could not retrieve CoinFaucet lookup ID from tuplespace");
+    console.log(err);
+    process.exit(1);
+  });
+});
 
 
 /////////////////////////////////////////////////
 
 
 app.post('/createCoin', (req, res) => {
-  var ack = Math.random().toString(36).substring(7);
-  
   var coinID = getCoinID(req.body.name);
-  var code = `@["${coinFaucetID}", "createCoin"]!("${req.body.account}","${coinID}","${req.body.name}","${req.body.symbol}",${req.body.totalSupply},"${ack}")`
-  var deployData = {term: code,
-                    timestamp: new Date().valueOf()
-                    // from: '0x1',
-                    // nonce: 0,
-                   }
+  var ack = Math.random().toString(36).substring(7);  
 
-  myNode.doDeploy(deployData).then(result => {
-    return myNode.createBlock()
-  }).then(result => {
-    res.json({'message':result, 'coinID':coinID});
-  }).catch(oops => { console.log(oops); })
+  var smartContract_createCoin = createSmartContractCall(COIN_FAUCET_ID, 
+                                                          "createCoin", 
+                                                          [
+                                                            coinID,
+                                                            req.body.name,
+                                                            req.body.symbol
+                                                          ],
+                                                          ack
+                                                        );
+  var createCoinData = createCompleteRequest(smartContract_createCoin);
+
+  // Execute the smart contract
+  myNode.doDeploy(createCoinData, true).then(createCoinResults => {
+    console.log("Attempted to create a new Coin Mint. Lookup ID should be available on return Channel : " + ack);
+
+    // Get the mint lookup ID from the channel
+    return myNode.listenForDataAtPublicName(ack);
+  }).then((blockResults) => {
+    if(blockResults.length === 0){
+      console.log("ERROR: Failed to create the Coin Mint.");
+      res.status(500).json({ message: "ERROR: Failed to create the Coin Mint." });
+      return;
+    }
+    var lastBlock = blockResults.slice(-1).pop();
+    var lastDatum = lastBlock.postBlockData.slice(-1).pop();
+    var COIN_MINT_LOOKUP_ID = RHOCore.toRholang(lastDatum).replace(/\"/g, '');
+
+    if (COIN_MINT_LOOKUP_ID === "EXISTS") {
+      console.log("ERROR: A Coin Mint for this coin already exists");
+      res.status(400).json({ message: "ERROR: A Coin Mint for this coin already exists" });
+    } else {
+      console.log("SUCCESS: Created the Coin Mint for " + req.body.name);
+      res.json({ message: "SUCCESS: Created the Coin Mint for " + req.body.name, lookupID: COIN_MINT_LOOKUP_ID });
+    }
+  }).catch(oops => { 
+    console.log(oops);
+    res.status(500).json({ message: "ERROR", error: JSON.stringify(oops) }); 
+  });
+
 });
 
 
@@ -267,4 +272,44 @@ app.post('/createTokenAward', (req, res) => {
 
 function getCoinID(name){
   return name.toLowerCase().replace(/\W/g, '');
+}
+
+
+function createSmartContractCall(lookupID, smartContractName, parameterValues, callbackChannel) {
+  // Create the smart contract call prefix
+  var smartContractCall = `new lookup(\`rho:registry:lookup\`), ack in {
+                              lookup!(\`${lookupID}\`, *ack)
+                              |
+                              for(smartContract <- ack){
+                                smartContract!("${smartContractName}"`;
+                              
+  // Add the parameters if they were provided
+  if (typeof parameterValues == 'object' && Array.isArray(parameterValues)){
+    for(var i = 0; i < parameterValues.length; i++){
+      smartContractCall += ', "' + parameterValues[i] + '"';
+    }
+  }
+
+  // Add the callback channel if it was provided
+  if (callbackChannel !== null) {
+    smartContractCall += ', "' + callbackChannel + '"';
+  }
+
+  // Add the smart contract call suffix
+  smartContractCall +=           `)
+                              }
+                          }`;
+
+  return smartContractCall;
+}
+
+function createCompleteRequest(smartContractCall, phloPrice=1, phloLimit=10000000) {
+  return {
+    term:  smartContractCall,
+    timestamp: new Date().valueOf(),
+    from: '0x01',
+    nonce: 0,
+    phloPrice: { value: phloPrice },
+    phloLimit: { value: phloLimit }
+  };
 }
